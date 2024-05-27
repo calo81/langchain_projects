@@ -1,0 +1,33 @@
+[tool.poetry]
+name = "dbt-sql-gpt"
+version = "0.1.0"
+description = ""
+authors = ["Carlo Scarioni <carlo.scarioni@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "<3.13,>=3.8.1"
+#langchain = "0.1.20"
+langchain-community = "*"
+langchain-openai = "*"
+openai = "1.28.2"
+python-dotenv = "1.0.1"
+prompt_toolkit = "*"
+langserve = {extras = ["all"], version = "*"}
+langchain-cli = "*"
+tavily-python = "*"
+bs4 = "*"
+faiss-cpu = "*"
+langchainhub = "*"
+langchain_chroma = "*"
+pyyaml = "*"
+google-cloud-bigquery = "*"
+pandas = "*"
+pyboxen = "*"
+langchain_experimental = "*"
+
+pytest = "*"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
