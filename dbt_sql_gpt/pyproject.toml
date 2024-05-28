@@ -26,6 +26,7 @@ pandas = "*"
 pyboxen = "*"
 langchain_experimental = "*"
 db-dtypes = "*"
+flask-socketio = "*"
 
 pytest = "*"
 

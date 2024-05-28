@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DBT SQL GPT</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f5f5f5;
+            margin: 0;
+        }
+
+        #main-container {
+            display: flex;
+            width: 80%;
+            height: 90%;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            background-color: #fff;
+        }
+
+        #accordion-menu {
+            width: 200px;
+            border-right: 1px solid #ccc;
+            background-color: #f9f9f9;
+            padding: 10px;
+        }
+
+        .accordion-item {
+            margin-bottom: 10px;
+        }
+
+        .accordion-item button {
+            width: 100%;
+            text-align: left;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 10px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .accordion-item button:hover {
+            background-color: #0056b3;
+        }
+
+        .accordion-content {
+            display: none;
+            padding: 10px;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            border-top: none;
+            border-radius: 0 0 5px 5px;
+        }
+
+        .accordion-content p {
+            margin: 0;
+        }
+
+        #chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        #header {
+            padding: 10px;
+            background-color: #007bff;
+            color: white;
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        #messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background-color: #e5e5e5;
+            border-bottom: 1px solid #ccc;
+        }
+
+        #messages ul {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        #messages li {
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 5px;
+            background-color: #fff;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        #messages .sent {
+            background-color: #dcf8c6;
+            text-align: right;
+        }
+
+        #input-container {
+            display: flex;
+            align-items: center;
+            border-top: 1px solid #ccc;
+            padding: 10px;
+            background-color: #fff;
+        }
+
+        #message {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            margin-right: 10px;
+        }
+
+        #send-button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        #send-button:hover {
+            background-color: #0056b3;
+        }
+
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 4px solid #007bff;
+            width: 16px;
+            height: 16px;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+            display: none;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            display: none;
+        }
+
+        .overlay .loader {
+            margin-left: 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="main-container">
+        <div id="accordion-menu">
+            <div class="accordion-item">
+                <button onclick="toggleAccordionContent('prepare-prompt-content')">Prepare Prompt</button>
+                <div id="prepare-prompt-content" class="accordion-content">
+                    <p>Content for Prepare Prompt.</p>
+                </div>
+            </div>
+            <div class="accordion-item">
+                <button onclick="toggleAccordionContent('upload-documents-content')">Upload Documents</button>
+                <div id="upload-documents-content" class="accordion-content">
+                    <p>Content for Upload Documents.</p>
+                </div>
+            </div>
+        </div>
+        <div id="chat-container">
+            <div id="header">DBT SQL GPT</div>
+            <div id="messages">
+                <ul id="messages-list"></ul>
+            </div>
+            <div id="input-container">
+                <input id="message" autocomplete="off" placeholder="Type your message here...">
+                <button id="send-button" onclick="sendMessage()">Send</button>
+                <div class="loader" id="loader"></div>
+            </div>
+            <div class="overlay" id="overlay">
+                <div class="loader"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        var socket = io();
+
+        socket.on('connect', function() {
+            console.log('Connected to server');
+        });
+
+        socket.on('message', function(msg) {
+            var li = document.createElement("li");
+            li.appendChild(document.createTextNode(msg));
+            li.className = 'received';
+            document.getElementById("messages-list").appendChild(li);
+            document.getElementById("messages").scrollTop = document.getElementById("messages").scrollHeight;
+            document.getElementById('loader').style.display = 'none';  // Hide inline loader when message is received
+            document.getElementById('overlay').style.display = 'none';  // Hide overlay when message is received
+            document.getElementById('message').disabled = false;
+            document.getElementById('send-button').disabled = false;
+        });
+
+        function sendMessage() {
+            var msg = document.getElementById('message').value;
+            if (msg.trim() !== '') {
+                var li = document.createElement("li");
+                li.appendChild(document.createTextNode(msg));
+                li.className = 'sent';
+                document.getElementById("messages-list").appendChild(li);
+                socket.send(msg);
+                document.getElementById('message').value = '';
+                document.getElementById("messages").scrollTop = document.getElementById("messages").scrollHeight;
+                document.getElementById('loader').style.display = 'inline-block';  // Show inline loader when message is sent
+                document.getElementById('overlay').style.display = 'flex';  // Show overlay when message is sent
+                document.getElementById('message').disabled = true;
+                document.getElementById('send-button').disabled = true;
+            }
+        }
+
+        document.getElementById('message').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        function toggleAccordionContent(contentId) {
+            var content = document.getElementById(contentId);
+            if (content.style.display === "block") {
+                content.style.display = "none";
+            } else {
+                content.style.display = "block";
+            }
+        }
+    </script>
+</body>
+</html>
