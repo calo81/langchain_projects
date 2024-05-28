@@ -54,7 +54,7 @@ models:
           - accepted_values:
               values: ['placed', 'shipped', 'completed', 'return_pending', 'returned']
 
-      - name: amount
+      - name: amount_int
         description: Total amount (AUD) of the order
         tests:
           - not_null

@@ -25,6 +25,7 @@ google-cloud-bigquery = "*"
 pandas = "*"
 pyboxen = "*"
 langchain_experimental = "*"
+db-dtypes = "*"
 
 pytest = "*"
 

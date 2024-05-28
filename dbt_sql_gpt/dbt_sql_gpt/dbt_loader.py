@@ -4,8 +4,7 @@ import yaml
 import json
 
 from langchain_core.documents import Document
-
-from langchain_community.document_loaders.base import BaseLoader
+from langchain_core.document_loaders import BaseLoader
 
 
 class DBTLoader(BaseLoader):
@@ -26,12 +25,13 @@ class DBTLoader(BaseLoader):
             for model in yaml['models']:
                 for column in model['columns']:
                     prepared_text = self._prepare_text_to_index(model, column)
-                    doc = Document(page_content=prepared_text, metadata={'model': model['name'], 'column': column['name'], 'table': model['name'],})
+                    doc = Document(page_content=prepared_text,
+                                   metadata={'model': model['name'], 'column': column['name'], 'table': model['name'],})
                     docs.append(doc)
         return docs
 
     def _prepare_text_to_index(self, model, column):
-        return f"""column:  {column['name']} with description: {column.get('description', 'xx')}. belongs to model {model['name']}. """
+        return f"""column:  {column['name']} with description: {column.get('description', 'xx')}. belongs to model {model['name']}."""
     def _get_yaml_files(self, directory):
         yaml_files = []
         for filename in os.listdir(directory):

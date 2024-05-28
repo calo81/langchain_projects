@@ -1,11 +1,10 @@
 import os
-
-from langchain.tools import Tool
 from google.cloud import bigquery
 from dbt_sql_gpt.bigquery_client import BigQueryClient
 import pandas as pd
 from dotenv import load_dotenv
 from pydantic.v1 import BaseModel
+from langchain_core.tools import Tool
 
 load_dotenv()
 
@@ -35,7 +34,7 @@ class MyTools:
             return "no result"
 
 
-    def set_dataset(self, xx):
+    def set_dataset(self, _):
         user_input = self.session.prompt('What is the dataset? >> ')
         return "Sql schema: " + user_input
 
@@ -50,7 +49,6 @@ class MyTools:
     def set_dataset_tool(self):
         return Tool.from_function(
             name="set_dataset",
-            description="sets a sql schema, only if you dont already have one available to use",
+            description="sets a sql schema",
             func=self.set_dataset,
-            args_schema=SqlSchema
         )
