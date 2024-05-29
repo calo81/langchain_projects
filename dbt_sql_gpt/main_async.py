@@ -43,8 +43,7 @@ load_dotenv()
 
 class MyGPT:
 
-    def __init__(self, static_context="", chunks=[]):
-        self.chunks = chunks
+    def __init__(self, static_context=""):
         current_file_path = os.path.abspath(__file__)
         current_directory = os.path.dirname(current_file_path)
         self.data_loader = DBTLoader(f"{current_directory}/test_directory")

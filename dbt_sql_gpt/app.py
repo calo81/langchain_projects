@@ -4,32 +4,43 @@ import os
 from main_async import MyGPT
 import asyncio
 import json
+from flask import request
 
 loop = asyncio.get_event_loop()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your_secret_key'
 socketio = SocketIO(app)
-chunks = []
-chat = MyGPT(chunks=chunks)
+chats = {}
 
 
 @app.route('/')
 def index():
     return render_template('index.html')
 
+@socketio.on('connect')
+def onConnect():
+    currentSocketId = request.sid
+    chats[currentSocketId] = MyGPT()
+
+@socketio.on('disconnect')
+def onDisconnect():
+    currentSocketId = request.sid
+    chats[currentSocketId] = None
 
 @socketio.on('message')
 def handle_message(msg):
+    currentSocketId = request.sid
+    chat = chats[currentSocketId]
     async def llm_and_send():
         async for chunk in chat.run_llm_loop(chat.data_loader, msg):
             returned = chunk['messages'][0].content
             if returned == '':
                 function_call = chunk['messages'][0].additional_kwargs['function_call']
                 if function_call['name'] == 'run_query':
-                    send(f"Executing Query {json.loads(function_call['arguments'])['query']}", broadcast=True)
+                    send(f"Executing Query {json.loads(function_call['arguments'])['query']}")
             else:
-                send(chunk['messages'][0].content, broadcast=True)
+                send(chunk['messages'][0].content)
 
     loop.run_until_complete(llm_and_send())
 
