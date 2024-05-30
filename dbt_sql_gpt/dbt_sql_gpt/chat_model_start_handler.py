@@ -3,7 +3,7 @@ from langchain_core.callbacks import BaseCallbackHandler
 
 
 def boxen_print(*args, **kwargs):
-    # print(boxen(*args, **kwargs))
+    print(boxen(*args, **kwargs))
     return
 
 

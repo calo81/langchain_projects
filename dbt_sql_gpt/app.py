@@ -1,7 +1,9 @@
 from flask import Flask, render_template
 from flask_socketio import SocketIO, send
 import os
-from main_async import MyGPT
+from dbt_sql_gpt.base_serving import LLMFlavor
+from dbt_sql_gpt.open_ai_serving import MyGPTOpenAI
+from dbt_sql_gpt.ollama_serving import MyGPTOllama
 import asyncio
 import json
 from flask import request
@@ -21,7 +23,8 @@ def index():
 @socketio.on('connect')
 def onConnect():
     currentSocketId = request.sid
-    chats[currentSocketId] = MyGPT()
+    # chats[currentSocketId] = MyGPTOpenAI()
+    chats[currentSocketId] = MyGPTOllama()
 
 @socketio.on('disconnect')
 def onDisconnect():
@@ -34,13 +37,16 @@ def handle_message(msg):
     chat = chats[currentSocketId]
     async def llm_and_send():
         async for chunk in chat.run_llm_loop(chat.data_loader, msg):
-            returned = chunk['messages'][0].content
-            if returned == '':
-                function_call = chunk['messages'][0].additional_kwargs['function_call']
-                if function_call['name'] == 'run_query':
-                    send(f"Executing Query {json.loads(function_call['arguments'])['query']}")
+            if hasattr(chunk, 'content'):
+                send(chunk.content)
             else:
-                send(chunk['messages'][0].content)
+                returned = chunk['messages'][0].content
+                if returned == '':
+                    function_call = chunk['messages'][0].additional_kwargs['tool_calls'][0]['function']
+                    if function_call['name'] == 'run_query':
+                        send(f"Executing Query {json.loads(function_call['arguments'])['query']}")
+                else:
+                    send(chunk['messages'][0].content)
 
     loop.run_until_complete(llm_and_send())
 
