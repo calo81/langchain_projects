@@ -34,6 +34,14 @@ from langchain_experimental.llms.ollama_functions import OllamaFunctions
 import pprint
 from langchain_core.document_loaders import BaseLoader
 from dbt_sql_gpt.custom_file_chat_message_history import CustomFileChatMessageHistory
+from enum import Enum
+from langchain.agents.agent import Agent
+from langchain.agents.structured_chat.base import create_structured_chat_agent
+from langchain_experimental.llms.ollama_functions import convert_to_ollama_tool
+from addict import Dict
+from llamaapi import LlamaAPI
+from langchain_experimental.llms import ChatLlamaAPI
+from dbt_sql_gpt.base_serving import LLMFlavor
 
 # Configure logging
 logging.basicConfig(level=logging.ERROR)
@@ -41,25 +49,29 @@ logging.basicConfig(level=logging.ERROR)
 load_dotenv()
 
 
-class MyGPT:
+class MyGPTOpenAI:
 
-    def __init__(self, static_context=""):
+    def __init__(self, static_context="", llm_flavor=LLMFlavor.OpenAI):
+        self.llm_flavor = llm_flavor
         current_file_path = os.path.abspath(__file__)
         current_directory = os.path.dirname(current_file_path)
         self.data_loader = DBTLoader(f"{current_directory}/test_directory")
         self.my_tools = MyTools()
         self.static_context = static_context
         self.memory = ConversationBufferMemory(
-            chat_memory=CustomFileChatMessageHistory("memory.json"),
+            chat_memory=CustomFileChatMessageHistory("../memory.json"),
             memory_key="chat_history",
             return_messages=True,
             input_key="input",
             output_key="output")
         handler = ChatModelStartHandler(self.memory)
-        self.llm = ChatOpenAI(model="gpt-4o", callbacks=[handler])
-        # self.llm = Ollama(model="llama3:70b")
-        # self.llm = OllamaFunctions(model="llama3:70b", format="json")
-        # self.llm.bind_tools([self.my_tools.run_query_tool(), self.my_tools.set_dataset_tool()])
+        if llm_flavor == LLMFlavor.OpenAI:
+            self.llm = ChatOpenAI(model="gpt-4o", callbacks=[handler])
+        elif llm_flavor == LLMFlavor.Ollama:
+            # llama = LlamaAPI(os.environ['LLAMA_API_KEY'])
+            # self.llm = ChatLlamaAPI(client=llama)
+            self.llm = OllamaFunctions(model="llama3:70b", format="json", callbacks=[handler])
+            self.llm = self.llm.bind_tools(tools=[Dict(convert_to_ollama_tool(self.my_tools.run_query_tool()))], function_call={"name": "run_query"})
 
     def filtered_docs(self, vectorstore):
         def inner(input):
@@ -75,15 +87,18 @@ class MyGPT:
         vectorstore = Chroma.from_documents(documents=docs, embedding=OpenAIEmbeddings())
 
         system_template = """ {static_context}.
-        You can invoke 2 tools:
-        Option 1. Only If you already know the "sql schema" from a previous human message, Your answer will invoke the corresponding run_query tool with a SQL query. All tables in the query will be qualified with the sql schema. You will use the following pieces of context to answer the question at the end.
+        You are an assistant to generate SQL queries
         
-        context:{context}
+        You have 2 options:
         
-        Option 2. If you don't have the sql schema from a previous message, you will call the set_dataset tool with empty parameter, and when you receive the response, you will get the SQL Schema from it and then your next answer will follow Option 1.
+        Option 1. If you don't have the sql schema from a previous message, you will just reply "Please introduce a dataset name in formar 'SQL schema: xx'"
+         
+        Option 2. if and Only If you already know the "sql schema" from a previous human message, Your answer will invoke the corresponding run_query tool with a SQL query. All tables in the query will be qualified with the sql schema. You will use the following pieces of context to answer the question at the end.
         
-        In any case, If you don't know the answer, just say that you don't know, don't try to make up an answer.
-        Always Use the context to find the correct column names. if you can't find the correct columns from the context, say you don't know.
+        context: {context}
+        
+        In any case, If you don't know the answer, ask me for more details, don't try to make up an answer.
+        Always Use the context to find the correct column names. if you can't find the correct columns from the context, ask for more details.
         """
         human_template = """
         Question: {input}
@@ -97,32 +112,34 @@ class MyGPT:
                 MessagesPlaceholder(variable_name="agent_scratchpad")
             ]
         )
+        if self.llm_flavor == LLMFlavor.OpenAI:
+            tools = [self.my_tools.run_query_tool()]
 
-        tools = [self.my_tools.run_query_tool(), self.my_tools.set_dataset_tool()]
+            agent = create_tool_calling_agent(
+                llm=self.llm,
+                prompt=chat_prompt,
+                tools=tools
+            )
 
-        agent = create_openai_functions_agent(
-            llm=self.llm,
-            prompt=chat_prompt,
-            tools=tools
-        )
+            agent_executor = AgentExecutor(
+                agent=agent,
+                verbose=True,
+                tools=tools,
+                memory=self.memory,
+                return_intermediate_steps=True
+            )
 
-        agent_executor = AgentExecutor(
-            agent=agent,
-            verbose=True,
-            tools=tools,
-            memory=self.memory,
-            return_intermediate_steps=True,
-        )
-
-        return agent_executor.astream(
+            return agent_executor.astream(
                 {'context': self.filtered_docs(vectorstore)(input), 'static_context': self.static_context,
                  'input': input})
 
+        elif self.llm_flavor == LLMFlavor.Ollama:
+            message = self.llm.invoke(
+                chat_prompt.invoke({'context': self.filtered_docs(vectorstore)(input), 'static_context': self.static_context,
+                 'input': input, "chat_history": [], 'agent_scratchpad': []}))
 
+            async def list_to_aiter(lst):
+                for item in lst:
+                    yield item
+            return list_to_aiter([message])
 
-if __name__ == '__main__':
-    current_file_path = os.path.abspath(__file__)
-    current_directory = os.path.dirname(current_file_path)
-    # shell = MyGPT()
-    shell = MyGPT(static_context="sql schema: cosas")
-    shell.run()

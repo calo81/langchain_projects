@@ -6,7 +6,7 @@ authors = ["Carlo Scarioni <carlo.scarioni@gmail.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "<3.13,>=3.8.1"
+python = "<3.13,>=3.9.0"
 #langchain = "0.1.20"
 langchain-community = "*"
 langchain-openai = "*"
@@ -27,7 +27,8 @@ pyboxen = "*"
 langchain_experimental = "*"
 db-dtypes = "*"
 flask-socketio = "*"
-
+addict = "*"
+llamaapi = "*"
 pytest = "*"
 
 [build-system]
