@@ -1,17 +1,15 @@
-from flask import Flask, render_template
-from flask_socketio import SocketIO, send
-import os
-from dbt_sql_gpt.base_serving import LLMFlavor
-from dbt_sql_gpt.open_ai_serving import MyGPTOpenAI
-from dbt_sql_gpt.ollama_serving import MyGPTOllama, OllamaFlavor
 import asyncio
 import json
-from flask import request
+import os
 import uuid
-from flask import Flask, render_template, request, session
-from flask_socketio import SocketIO, send, emit
-from flask_session import Session
 
+from flask import Flask, render_template, request, session
+from flask_socketio import SocketIO, send
+
+from dbt_sql_gpt.base_serving import LLMFlavor
+from dbt_sql_gpt.ollama_serving import MyGPTOllama, OllamaFlavor
+from dbt_sql_gpt.open_ai_serving import MyGPTOpenAI
+from flask_session import Session
 
 loop = asyncio.get_event_loop()
 
