@@ -5,3 +5,4 @@ messages.json
 memory.json
 log.txt
 __pycache__
+flask_session

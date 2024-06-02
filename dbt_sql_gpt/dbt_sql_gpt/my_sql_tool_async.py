@@ -29,7 +29,7 @@ class MyTools:
             return result
         except Exception as e:
             print(e)
-            return "no result"
+            return f"error: {str(e)}"
 
 
     def set_dataset(self, fed):

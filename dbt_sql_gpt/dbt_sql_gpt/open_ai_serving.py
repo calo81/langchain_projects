@@ -41,7 +41,8 @@ from langchain_experimental.llms.ollama_functions import convert_to_ollama_tool
 from addict import Dict
 from llamaapi import LlamaAPI
 from langchain_experimental.llms import ChatLlamaAPI
-from dbt_sql_gpt.base_serving import LLMFlavor
+from dbt_sql_gpt.base_serving import LLMFlavor, BaseServing
+import types
 
 # Configure logging
 logging.basicConfig(level=logging.ERROR)
@@ -49,44 +50,14 @@ logging.basicConfig(level=logging.ERROR)
 load_dotenv()
 
 
-class MyGPTOpenAI:
+class MyGPTOpenAI(BaseServing):
 
-    def __init__(self, static_context="", llm_flavor=LLMFlavor.OpenAI):
-        self.llm_flavor = llm_flavor
-        current_file_path = os.path.abspath(__file__)
-        current_directory = os.path.dirname(current_file_path)
-        self.data_loader = DBTLoader(f"{current_directory}/test_directory")
-        self.my_tools = MyTools()
-        self.static_context = static_context
-        self.memory = ConversationBufferMemory(
-            chat_memory=CustomFileChatMessageHistory("../memory.json"),
-            memory_key="chat_history",
-            return_messages=True,
-            input_key="input",
-            output_key="output")
-        handler = ChatModelStartHandler(self.memory)
-        if llm_flavor == LLMFlavor.OpenAI:
-            self.llm = ChatOpenAI(model="gpt-4o", callbacks=[handler])
-        elif llm_flavor == LLMFlavor.Ollama:
-            # llama = LlamaAPI(os.environ['LLAMA_API_KEY'])
-            # self.llm = ChatLlamaAPI(client=llama)
-            self.llm = OllamaFunctions(model="llama3:70b", format="json", callbacks=[handler])
-            self.llm = self.llm.bind_tools(tools=[Dict(convert_to_ollama_tool(self.my_tools.run_query_tool()))], function_call={"name": "run_query"})
+    def __init__(self, static_context=""):
+        super().__init__(static_context, LLMFlavor.OpenAI)
+        self.llm = ChatOpenAI(model="gpt-4o", callbacks=[self.handler])
 
-    def filtered_docs(self, vectorstore):
-        def inner(input):
-            retrieved_docs = vectorstore.similarity_search_with_score(query=input, k=25)
-            # find the more similar
-            # filtered_docs = [doc[0] for doc in retrieved_docs if doc[1] < 0.4]
-            return retrieved_docs
-
-        return inner
-
-    def run_llm_loop(self, loader: BaseLoader, input: str):
-        docs = loader.load()
-        vectorstore = Chroma.from_documents(documents=docs, embedding=OpenAIEmbeddings())
-
-        system_template = """ {static_context}.
+    def system_template(self):
+        return """ {static_context}.
         You are an assistant to generate SQL queries
         
         You have 2 options:
@@ -100,46 +71,39 @@ class MyGPTOpenAI:
         In any case, If you don't know the answer, ask me for more details, don't try to make up an answer.
         Always Use the context to find the correct column names. if you can't find the correct columns from the context, ask for more details.
         """
-        human_template = """
+
+    def human_template(self):
+        return """
         Question: {input}
         """
 
+    async def run_llm_loop(self, loader: BaseLoader, input: str):
+
         chat_prompt = ChatPromptTemplate(
             messages=[
-                SystemMessagePromptTemplate.from_template(system_template),
+                SystemMessagePromptTemplate.from_template(self.system_template()),
                 MessagesPlaceholder(variable_name="chat_history"),
-                HumanMessagePromptTemplate.from_template(human_template),
+                HumanMessagePromptTemplate.from_template(self.human_template()),
                 MessagesPlaceholder(variable_name="agent_scratchpad")
             ]
         )
-        if self.llm_flavor == LLMFlavor.OpenAI:
-            tools = [self.my_tools.run_query_tool()]
+        tools = [self.my_tools.run_query_tool()]
 
-            agent = create_tool_calling_agent(
-                llm=self.llm,
-                prompt=chat_prompt,
-                tools=tools
-            )
+        agent = create_tool_calling_agent(
+            llm=self.llm,
+            prompt=chat_prompt,
+            tools=tools
+        )
 
-            agent_executor = AgentExecutor(
-                agent=agent,
-                verbose=True,
-                tools=tools,
-                memory=self.memory,
-                return_intermediate_steps=True
-            )
+        agent_executor = AgentExecutor(
+            agent=agent,
+            verbose=True,
+            tools=tools,
+            memory=self.memory,
+            return_intermediate_steps=True
+        )
 
-            return agent_executor.astream(
-                {'context': self.filtered_docs(vectorstore)(input), 'static_context': self.static_context,
-                 'input': input})
-
-        elif self.llm_flavor == LLMFlavor.Ollama:
-            message = self.llm.invoke(
-                chat_prompt.invoke({'context': self.filtered_docs(vectorstore)(input), 'static_context': self.static_context,
-                 'input': input, "chat_history": [], 'agent_scratchpad': []}))
-
-            async def list_to_aiter(lst):
-                for item in lst:
-                    yield item
-            return list_to_aiter([message])
-
+        async for message in agent_executor.astream(
+            {'context': self.filtered_docs()(input), 'static_context': self.static_context,
+             'input': input}):
+            yield message

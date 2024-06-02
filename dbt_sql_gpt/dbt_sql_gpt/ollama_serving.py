@@ -47,6 +47,8 @@ from dbt_sql_gpt.base_serving import LLMFlavor
 from langchain_core.pydantic_v1 import BaseModel
 from typing import Any
 import json
+from langchain_core.messages.ai import AIMessage
+from dbt_sql_gpt.base_serving import BaseServing, LLMFlavor
 
 # Configure logging
 logging.basicConfig(level=logging.ERROR)
@@ -54,26 +56,22 @@ logging.basicConfig(level=logging.ERROR)
 load_dotenv()
 
 
-class MyGPTOllama:
+class OllamaFlavor(Enum):
+    llama3_8b = "llama3:8b"
+    llama3_70b = "llama3:70b"
+    codestral = "codestral"
 
-    def __init__(self):
-        self.llm_flavor = LLMFlavor.Ollama
-        current_file_path = os.path.abspath(__file__)
-        current_directory = os.path.dirname(current_file_path)
-        self.data_loader = DBTLoader(f"{current_directory}/test_directory")
-        self.my_tools = MyTools()
-        self.memory = ConversationBufferMemory(
-            chat_memory=CustomFileChatMessageHistory("../memory.json"),
-            memory_key="chat_history",
-            return_messages=True,
-            input_key="input",
-            output_key="output")
-        handler = ChatModelStartHandler(self.memory)
+
+class MyGPTOllama(BaseServing):
+
+    def __init__(self, ollama_flavor: OllamaFlavor = OllamaFlavor.llama3_8b):
+        super().__init__(static_context="", llm_flavor=LLMFlavor.Ollama)
+        self.ollama_flavor = ollama_flavor
         self.tools = [Dict(self._convert_to_ollama_tool(self.my_tools.run_query_tool())),
                       DEFAULT_RESPONSE_FUNCTION]
 
-        self.llm = OllamaFunctions(model="llama3:70b", format="json", callbacks=[handler],
-                                   tool_system_prompt_template=self.system_template())
+        self.llm = OllamaFunctions(model=self.ollama_flavor.value, format="json", callbacks=[self.handler],
+                                   tool_system_prompt_template=self.system_template(), keep_alive='120m')
         self.llm = self.llm.bind_tools(tools=self.tools)
 
     def _is_pydantic_class(self, obj: Any) -> bool:
@@ -126,17 +124,7 @@ class MyGPTOllama:
         Always Use the context to find the correct column names. if you can't find the correct columns from the context, ask for more details invoking the __conversational_response tool.
         """
 
-    def filtered_docs(self, vectorstore):
-        def inner(input):
-            retrieved_docs = vectorstore.similarity_search_with_score(query=input, k=25)
-            docs = [doc[0].page_content for doc in retrieved_docs]
-            return docs
-
-        return inner
-
-    def run_llm_loop(self, loader: BaseLoader, input: str):
-        docs = loader.load()
-        vectorstore = Chroma.from_documents(documents=docs, embedding=OpenAIEmbeddings())
+    async def run_llm_loop(self, loader: BaseLoader, input: str):
 
         human_template = """
         Question: {input}
@@ -150,26 +138,25 @@ class MyGPTOllama:
                 HumanMessagePromptTemplate.from_template(human_template),
             ]
         )
+
         message = self.llm.invoke(
             chat_prompt.invoke(
-                {'context': self.filtered_docs(vectorstore)(input),
+                {'context': self.filtered_docs()(input),
                  'input': input, "chat_history": self.memory.buffer_as_messages, 'tools': self.tools}).to_string())
-
         self.memory.chat_memory.add_user_message(input)
         self.memory.chat_memory.add_ai_message(message.content)
 
         if message.additional_kwargs.get('function_call', {}).get('name', None) == 'run_query':
             query = json.loads(message.additional_kwargs['function_call']['arguments'])['query']
+            yield AIMessage(content=f"Running query {query}")
             result = self.my_tools.run_query(query)
             self.memory.chat_memory.add_ai_message(query)
             message = self.llm.invoke(
                 chat_prompt.invoke(
-                    {'context': self.filtered_docs(vectorstore)(input),
-                     'input': f"For this message, reply me back using tool __conversational_response with the following verbatim 'The result of the query {query} is {result}' but nicely formatted", "chat_history": self.memory.buffer_as_messages, 'tools': self.tools}).to_string())
+                    {'context': self.filtered_docs()(input),
+                     'input': f"For this message, reply back always in json using the tool: __conversational_response provided before with tool_input parameters response: 'The result of the query {query} is {result}' but nicely formatted",
+                     "chat_history": self.memory.buffer_as_messages, 'tools': self.tools}).to_string())
             self.memory.chat_memory.add_ai_message(message.content)
-
-        async def list_to_aiter(lst):
-            for item in lst:
-                yield item
-
-        return list_to_aiter([message])
+            yield message
+        else:
+            yield message
