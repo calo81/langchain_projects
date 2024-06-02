@@ -30,6 +30,7 @@ flask-socketio = "*"
 addict = "*"
 llamaapi = "*"
 pytest = "*"
+flask-session = "*"
 
 [build-system]
 requires = ["poetry-core"]
