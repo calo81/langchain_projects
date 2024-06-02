@@ -87,7 +87,7 @@ class MyGPTOpenAI(BaseServing):
                 MessagesPlaceholder(variable_name="agent_scratchpad")
             ]
         )
-        tools = [self.my_tools.run_query_tool()]
+        tools = [self.my_tools.run_query_tool(), self.my_tools.plot_data_tool()]
 
         agent = create_tool_calling_agent(
             llm=self.llm,

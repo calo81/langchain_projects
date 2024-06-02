@@ -17,6 +17,10 @@ class SqlSchema(BaseModel):
     sql_schema: str
 
 
+class Dictionary(BaseModel):
+    dictionary: dict
+
+
 class MyTools:
 
 
@@ -26,7 +30,7 @@ class MyTools:
             credentials_path = os.getenv('GCP_CREDENTIALS')
             bigquery_client = BigQueryClient(project_id, credentials_path)
             result = bigquery_client.query(query)
-            return result
+            return result.to_dict()
         except Exception as e:
             print(e)
             return f"error: {str(e)}"
@@ -34,6 +38,9 @@ class MyTools:
 
     def set_dataset(self, fed):
         return "Please introduce a SQL schema"
+
+    def plot_data_func(self, dictionary):
+        return f"Please do an HTML plot based on the data {dictionary}. Return the HTML only, no header, not markdown and no description at all"
 
     def run_query_tool(self):
         return Tool.from_function(
@@ -48,4 +55,12 @@ class MyTools:
             name="set_dataset",
             description="sets a sql schema",
             func=self.set_dataset,
+        )
+
+    def plot_data_tool(self):
+        return Tool.from_function(
+            name="plot_data",
+            description="creates all kind of html plots from the given data",
+            func=self.plot_data_func,
+            args_schema=Dictionary
         )

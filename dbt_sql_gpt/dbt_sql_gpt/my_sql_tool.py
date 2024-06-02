@@ -38,6 +38,9 @@ class MyTools:
         user_input = self.session.prompt('What is the dataset? >> ')
         return "Sql schema: " + user_input
 
+    def plot_data(self, data):
+        return "Sql schema: "
+
     def run_query_tool(self):
         return Tool.from_function(
             name="run_query",
@@ -51,4 +54,12 @@ class MyTools:
             name="set_dataset",
             description="sets a sql schema",
             func=self.set_dataset,
+        )
+
+
+    def plot_data(self, data):
+        return Tool.from_function(
+            name="plot_data",
+            description="creates all kind of html plots from the given data",
+            func=self.plot_data,
         )
