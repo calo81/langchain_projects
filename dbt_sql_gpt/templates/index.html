@@ -57,7 +57,8 @@
 
         socket.on('message', function(msg) {
             var li = document.createElement("li");
-            li.appendChild(document.createTextNode(msg));
+            // li.appendChild(document.createTextNode(msg));
+            li.innerHTML = msg
             li.className = 'received';
             document.getElementById("messages-list").appendChild(li);
             document.getElementById("messages").scrollTop = document.getElementById("messages").scrollHeight;

@@ -68,6 +68,7 @@ class MyGPTOllama(BaseServing):
         super().__init__(static_context="", llm_flavor=LLMFlavor.Ollama)
         self.ollama_flavor = ollama_flavor
         self.tools = [Dict(self._convert_to_ollama_tool(self.my_tools.run_query_tool())),
+                      Dict(self._convert_to_ollama_tool(self.my_tools.plot_data_tool())),
                       DEFAULT_RESPONSE_FUNCTION]
 
         self.llm = OllamaFunctions(model=self.ollama_flavor.value, format="json", callbacks=[self.handler],
@@ -127,7 +128,7 @@ class MyGPTOllama(BaseServing):
     async def run_llm_loop(self, loader: BaseLoader, input: str):
 
         human_template = """
-        Question: {input}
+        Question: {input}. Remember to reply always using the provided tools. If the question is about plots, use the plot_data tool.
         """
 
         chat_prompt = ChatPromptTemplate(
@@ -155,6 +156,17 @@ class MyGPTOllama(BaseServing):
                 chat_prompt.invoke(
                     {'context': self.filtered_docs()(input),
                      'input': f"For this message, reply back always in json using the tool: __conversational_response provided before with tool_input parameters response: 'The result of the query {query} is {result}' but nicely formatted",
+                     "chat_history": self.memory.buffer_as_messages, 'tools': self.tools}).to_string())
+            self.memory.chat_memory.add_ai_message(message.content)
+            yield message
+        elif message.additional_kwargs.get('function_call', {}).get('name', None) == 'plot_data':
+            data = json.loads(message.additional_kwargs['function_call']['arguments'])['dictionary']
+            yield AIMessage(content=f"Plotting Data for {data}")
+            self.memory.chat_memory.add_ai_message(json.dumps(data))
+            message = self.llm.invoke(
+                chat_prompt.invoke(
+                    {'context': self.filtered_docs()(input),
+                     'input': f"For this message, reply back always in json using the tool: __conversational_response provided before with tool_input parameters response: an html plot of the data {data}",
                      "chat_history": self.memory.buffer_as_messages, 'tools': self.tools}).to_string())
             self.memory.chat_memory.add_ai_message(message.content)
             yield message
