@@ -1,10 +1,10 @@
 import os
-from google.cloud import bigquery
-from dbt_sql_gpt.bigquery_client import BigQueryClient
-import pandas as pd
+
 from dotenv import load_dotenv
-from pydantic.v1 import BaseModel
 from langchain_core.tools import Tool
+from pydantic.v1 import BaseModel
+
+from dbt_sql_gpt.bigquery_client import BigQueryClient
 
 load_dotenv()
 

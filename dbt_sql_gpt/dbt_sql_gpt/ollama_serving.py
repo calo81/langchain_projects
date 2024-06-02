@@ -1,53 +1,18 @@
-from langchain_community.tools.tavily_search import TavilySearchResults
-from dotenv import load_dotenv
-import os
-from langchain_community.document_loaders import WebBaseLoader
-from langchain_community.vectorstores import FAISS
-from langchain_openai import OpenAIEmbeddings
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain.tools.retriever import create_retriever_tool
-from langchain_openai import ChatOpenAI
-from langchain import hub
-from langchain.agents import create_tool_calling_agent
-from langchain.agents import AgentExecutor, create_openai_functions_agent
-from langchain_community.chat_message_histories import FileChatMessageHistory, ChatMessageHistory
-from langchain_core.runnables.history import RunnableWithMessageHistory
-from langchain_chroma import Chroma
-from dbt_sql_gpt.dbt_loader import DBTLoader
-from langchain_community.llms import Ollama
-from langchain_chroma import Chroma
-from langchain_openai import OpenAIEmbeddings
-from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate, MessagesPlaceholder, PromptTemplate
-from langchain_core.prompts.chat import SystemMessagePromptTemplate
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import RunnablePassthrough
-from langchain.agents import OpenAIFunctionsAgent, AgentExecutor
-from dbt_sql_gpt.my_sql_tool_async import MyTools
-from prompt_toolkit import PromptSession
-from prompt_toolkit.history import InMemoryHistory
-from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
-from prompt_toolkit.completion import WordCompleter
+import json
 import logging
-from langchain.memory import ConversationBufferMemory
-from dbt_sql_gpt.chat_model_start_handler import ChatModelStartHandler
+from enum import Enum
+from typing import Any
+
+from addict import Dict
+from dotenv import load_dotenv
+from langchain_core.document_loaders import BaseLoader
+from langchain_core.messages.ai import AIMessage
+from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate, MessagesPlaceholder
+from langchain_core.prompts.chat import SystemMessagePromptTemplate
+from langchain_core.pydantic_v1 import BaseModel
 from langchain_experimental.llms.ollama_functions import DEFAULT_RESPONSE_FUNCTION
 from langchain_experimental.llms.ollama_functions import OllamaFunctions
 
-import pprint
-from langchain_core.document_loaders import BaseLoader
-from dbt_sql_gpt.custom_file_chat_message_history import CustomFileChatMessageHistory
-from enum import Enum
-from langchain.agents.agent import Agent
-from langchain.agents.structured_chat.base import create_structured_chat_agent
-from langchain_experimental.llms.ollama_functions import convert_to_ollama_tool
-from addict import Dict
-from llamaapi import LlamaAPI
-from langchain_experimental.llms import ChatLlamaAPI
-from dbt_sql_gpt.base_serving import LLMFlavor
-from langchain_core.pydantic_v1 import BaseModel
-from typing import Any
-import json
-from langchain_core.messages.ai import AIMessage
 from dbt_sql_gpt.base_serving import BaseServing, LLMFlavor
 
 # Configure logging
